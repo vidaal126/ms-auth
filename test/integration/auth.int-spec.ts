@@ -7,6 +7,7 @@ import type { INestApplication } from "@nestjs/common";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { z } from "zod";
+import { sampleValue } from "../../src/test/metrics.helpers";
 
 const ADMIN_EMAIL = "admin@ms-platform.local";
 const ADMIN_PASSWORD = "admin-senha-segura";
@@ -176,5 +177,19 @@ describe("ms-auth: sessao, usuarios e JWKS (integracao)", () => {
 
   it("health ready com banco no ar", async () => {
     expect((await call("GET", "/health/ready")).status).toBe(200);
+  });
+
+  it("GET /metrics conta logins, falhas e reuso de refresh", async () => {
+    const text = await (await fetch(`${baseUrl}/metrics`)).text();
+
+    expect(sampleValue(text, "auth_session_events_total", { event: "login", outcome: "success" })).toBeGreaterThan(0);
+    expect(sampleValue(text, "auth_session_events_total", { event: "login", outcome: "failure" })).toBe(2);
+    // Reuso so do token rotacionado; o vigente (revogado junto) e o deslogado
+    // contam como falha comum.
+    expect(sampleValue(text, "auth_session_events_total", { event: "refresh", outcome: "reuse_detected" })).toBe(1);
+    expect(sampleValue(text, "auth_session_events_total", { event: "refresh", outcome: "failure" })).toBe(2);
+    expect(
+      sampleValue(text, "http_request_duration_seconds_count", { method: "GET", route: "/users/me", status_code: "200" }),
+    ).toBe(1);
   });
 });

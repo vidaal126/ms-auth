@@ -47,7 +47,7 @@ export class InMemoryRefreshTokenRepository implements IRefreshTokenRepository {
   async rotate(currentId: string, next: RefreshToken, now: Date): Promise<boolean> {
     const current = this.rows.get(currentId);
     if (!current || current.isRevoked() || this.loseNextRotation) return false;
-    this.rows.set(currentId, revoked(current, now));
+    this.rows.set(currentId, revoked(current, now, next.id));
     this.rows.set(next.id, next);
     return true;
   }
@@ -63,7 +63,7 @@ export class InMemoryRefreshTokenRepository implements IRefreshTokenRepository {
   }
 }
 
-function revoked(token: RefreshToken, now: Date): RefreshToken {
+function revoked(token: RefreshToken, now: Date, replacedById: string | null = null): RefreshToken {
   return RefreshTokenEntity.restore({
     id: token.id,
     userId: token.userId,
@@ -72,6 +72,7 @@ function revoked(token: RefreshToken, now: Date): RefreshToken {
     expiresAt: token.expiresAt,
     createdAt: token.createdAt,
     revokedAt: now,
+    replacedById: token.replacedById ?? replacedById,
   });
 }
 

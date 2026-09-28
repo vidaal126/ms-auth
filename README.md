@@ -31,7 +31,9 @@ Serviço de identidade da plataforma (NestJS, Prisma, PostgreSQL):
   `refresh_tokens`.
 - **Detecção de reuso**: apresentar um refresh token já rotacionado, ou perder
   a corrida de dois refresh simultâneos, revoga a família inteira. O usuário
-  precisa fazer login de novo.
+  precisa fazer login de novo. Um token revogado por logout, ou pela revogação
+  da família, não conta como reuso: recebe só 401 de token inválido
+  (`replacedById` distingue os dois casos).
 - **`kid`**: é o thumbprint RFC 7638 da chave pública. Ele só muda se a chave
   mudar, o que permite ao gateway manter o JWKS em cache.
 - **Login**: email inexistente, senha errada e usuário inativo dão o mesmo 401.
@@ -78,6 +80,7 @@ Validadas com Zod no boot; env inválida impede a subida. Veja `.env.example`.
 | `GET` | `/users/me` | autenticado | dono do token |
 | `GET` | `/.well-known/jwks.json` | público | chave pública (`Cache-Control: max-age=300`) |
 | `GET` | `/health/live` e `/health/ready` | público | liveness; readiness verifica o banco |
+| `GET` | `/metrics` | rede interna | Prometheus: HTTP por rota e `auth_session_events_total{event,outcome}` |
 
 As respostas de token levam `Cache-Control: no-store`. O ms-auth valida o
 próprio JWT nas rotas `/users`, em vez de confiar só no gateway.

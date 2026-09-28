@@ -5,7 +5,9 @@ import {
   LogoutUseCase,
   RefreshSessionUseCase,
 } from "@application/use-cases/session.use-cases";
+import { RefreshTokenReuseDetectedError } from "@domain/errors/auth.errors";
 import { SIGNING_KEY, type SigningKey } from "@infrastructure/crypto/signing-key";
+import { MetricsService, type SessionEvent } from "@infrastructure/metrics/metrics.service";
 import { LoginDto, RefreshTokenDto, type TokenPairResponseDto } from "./dto/auth.dto";
 import { toTokenPairResponse } from "./mappers/auth-response.mapper";
 
@@ -18,6 +20,7 @@ export class AuthController {
     private readonly login: LoginUseCase,
     private readonly refresh: RefreshSessionUseCase,
     private readonly logout: LogoutUseCase,
+    private readonly metrics: MetricsService,
   ) {}
 
   @Post("login")
@@ -25,7 +28,7 @@ export class AuthController {
   @SkipThrottle({ login: false })
   @Header("Cache-Control", "no-store")
   async signIn(@Body() dto: LoginDto): Promise<TokenPairResponseDto> {
-    return toTokenPairResponse(await this.login.execute(dto));
+    return toTokenPairResponse(await this.measured("login", () => this.login.execute(dto)));
   }
 
   @Post("refresh")
@@ -33,13 +36,29 @@ export class AuthController {
   @SkipThrottle({ login: false })
   @Header("Cache-Control", "no-store")
   async rotate(@Body() dto: RefreshTokenDto): Promise<TokenPairResponseDto> {
-    return toTokenPairResponse(await this.refresh.execute(dto.refreshToken));
+    return toTokenPairResponse(
+      await this.measured("refresh", () => this.refresh.execute(dto.refreshToken)),
+    );
   }
 
   @Post("logout")
   @HttpCode(HttpStatus.NO_CONTENT)
   async signOut(@Body() dto: RefreshTokenDto): Promise<void> {
-    await this.logout.execute(dto.refreshToken);
+    await this.measured("logout", () => this.logout.execute(dto.refreshToken));
+  }
+
+  private async measured<T>(event: SessionEvent, run: () => Promise<T>): Promise<T> {
+    try {
+      const result = await run();
+      this.metrics.recordSession(event, "success");
+      return result;
+    } catch (err) {
+      this.metrics.recordSession(
+        event,
+        err instanceof RefreshTokenReuseDetectedError ? "reuse_detected" : "failure",
+      );
+      throw err;
+    }
   }
 }
 

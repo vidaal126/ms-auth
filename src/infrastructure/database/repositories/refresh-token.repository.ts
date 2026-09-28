@@ -48,7 +48,7 @@ function toData(token: RefreshToken): RefreshTokenModel {
     expiresAt: token.expiresAt,
     createdAt: token.createdAt,
     revokedAt: token.revokedAt,
-    replacedById: null,
+    replacedById: token.replacedById,
   };
 }
 
@@ -61,5 +61,6 @@ function toDomain(row: RefreshTokenModel): RefreshToken {
     expiresAt: row.expiresAt,
     createdAt: row.createdAt,
     revokedAt: row.revokedAt,
+    replacedById: row.replacedById,
   });
 }

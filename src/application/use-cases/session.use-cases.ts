@@ -97,6 +97,9 @@ export class RefreshSessionUseCase {
     if (!current) throw new InvalidRefreshTokenError();
 
     if (current.isRevoked()) {
+      // Ja rotacionado e apresentado de novo: vazamento. Revogado por logout
+      // (ou pela revogacao da familia): so invalido.
+      if (!current.wasRotated()) throw new InvalidRefreshTokenError();
       await this.deps.refreshTokens.revokeFamily(current.familyId, now);
       throw new RefreshTokenReuseDetectedError();
     }

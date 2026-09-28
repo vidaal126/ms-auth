@@ -18,6 +18,7 @@ export interface RestoreRefreshTokenProps {
   readonly expiresAt: Date;
   readonly createdAt: Date;
   readonly revokedAt: Date | null;
+  readonly replacedById: string | null;
 }
 
 // Guarda so o hash do token: vazamento do banco nao entrega sessoes validas.
@@ -30,6 +31,9 @@ export class RefreshToken {
     readonly expiresAt: Date,
     readonly createdAt: Date,
     readonly revokedAt: Date | null,
+    // Preenchido so na rotacao: distingue "ja trocado por outro" (reuso se
+    // reaparecer) de "revogado por logout/revogacao da familia".
+    readonly replacedById: string | null,
   ) {}
 
   static issue(props: IssueRefreshTokenProps): RefreshToken {
@@ -40,6 +44,7 @@ export class RefreshToken {
       props.tokenHash,
       new Date(props.now.getTime() + props.ttlSeconds * 1000),
       props.now,
+      null,
       null,
     );
   }
@@ -53,6 +58,7 @@ export class RefreshToken {
       props.expiresAt,
       props.createdAt,
       props.revokedAt,
+      props.replacedById,
     );
   }
 
@@ -62,6 +68,10 @@ export class RefreshToken {
 
   isRevoked(): boolean {
     return this.revokedAt !== null;
+  }
+
+  wasRotated(): boolean {
+    return this.replacedById !== null;
   }
 
   isExpired(now: Date): boolean {

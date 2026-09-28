@@ -89,7 +89,8 @@ describe("sessao: login, refresh e logout", () => {
     const second = await refresh.execute(first.refreshToken);
 
     await expect(refresh.execute(first.refreshToken)).rejects.toBeInstanceOf(RefreshTokenReuseDetectedError);
-    await expect(refresh.execute(second.refreshToken)).rejects.toBeInstanceOf(RefreshTokenReuseDetectedError);
+    // O token vigente foi revogado junto com a familia: agora so invalido.
+    await expect(refresh.execute(second.refreshToken)).rejects.toBeInstanceOf(InvalidRefreshTokenError);
     const familyId = [...refreshTokens.rows.values()][0]?.familyId ?? "";
     expect(refreshTokens.activeInFamily(familyId)).toBe(0);
   });
@@ -115,7 +116,7 @@ describe("sessao: login, refresh e logout", () => {
     );
   });
 
-  it("logout revoga a familia e e idempotente", async () => {
+  it("logout revoga a familia e e idempotente; token deslogado e invalido, nao reuso", async () => {
     const first = await login();
     const logout = new LogoutUseCase(refreshTokens, deps.secrets, () => now);
 
@@ -124,7 +125,7 @@ describe("sessao: login, refresh e logout", () => {
     await logout.execute("desconhecido");
 
     await expect(new RefreshSessionUseCase(deps).execute(first.refreshToken)).rejects.toBeInstanceOf(
-      RefreshTokenReuseDetectedError,
+      InvalidRefreshTokenError,
     );
   });
 });
