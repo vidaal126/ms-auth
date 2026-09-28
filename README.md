@@ -1,11 +1,13 @@
 # ms-auth
 
+> Plataforma: [ms-platform](https://github.com/vidaal126/ms-platform#readme) · [ms-gateway](https://github.com/vidaal126/ms-gateway#readme) · **ms-auth** · [ms-catalog](https://github.com/vidaal126/ms-catalog#readme) · [ms-transport](https://github.com/vidaal126/ms-transport#readme) · [ms-customer](https://github.com/vidaal126/ms-customer#readme) · [ms-sales-order](https://github.com/vidaal126/ms-sales-order#readme)
+
 Serviço de identidade da plataforma (NestJS, Prisma, PostgreSQL):
 
 - usuários com roles (`admin`, `operator`);
 - login com senha (argon2id), access token JWT RS256 de vida curta e refresh
   token opaco com rotação;
-- JWKS público para o [ms-gateway](../ms-gateway/README.md) validar tokens
+- JWKS público para o [ms-gateway](https://github.com/vidaal126/ms-gateway#readme) validar tokens
   sem chamar o ms-auth a cada request.
 
 ## Arquitetura
@@ -46,7 +48,7 @@ Serviço de identidade da plataforma (NestJS, Prisma, PostgreSQL):
 
 ## Como subir
 
-Com a infraestrutura do [ms-platform](../ms-platform/README.md) no ar:
+Com a infraestrutura do [ms-platform](https://github.com/vidaal126/ms-platform#readme) no ar:
 
 ```bash
 cp .env.example .env
@@ -109,4 +111,8 @@ yarn test:integration  # Postgres real (testcontainers)
   continua válido até expirar.
 - **Sem desativação nem troca de senha pela API.** `active` existe no modelo,
   mas não há endpoint para mudá-lo.
-- **Rate limit em memória, por réplica.**
+- **Rate limit em memória, por réplica.** O `trust proxy` confia em
+  exatamente 1 salto (o ms-gateway, que anexa o IP do cliente ao
+  `X-Forwarded-For`), então o limite conta por cliente e não pelo IP do
+  gateway. Acessar o serviço direto, sem o gateway, permite escolher o IP
+  contado via `X-Forwarded-For`.
