@@ -24,6 +24,7 @@ import {
   GetUserUseCase,
 } from "@application/use-cases/user.use-cases";
 import { type Env, readEnv } from "@config/env";
+import { RefreshTokenCleanupService } from "@infrastructure/cleanup/refresh-token-cleanup.service";
 import { Argon2PasswordHasher } from "@infrastructure/crypto/argon2-password-hasher";
 import { JwtAccessTokenService } from "@infrastructure/crypto/jwt-access-token.service";
 import { OpaqueRefreshTokenSecrets } from "@infrastructure/crypto/opaque-refresh-token.secrets";
@@ -110,6 +111,7 @@ const clock = (): Date => new Date();
       inject: [CreateUserUseCase, USER_REPOSITORY],
     },
     BootstrapAdminService,
+    RefreshTokenCleanupService,
   ],
 })
 export class AuthModule {}

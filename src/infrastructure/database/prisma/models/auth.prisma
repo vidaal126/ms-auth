@@ -27,5 +27,7 @@ model RefreshToken {
 
   @@index([familyId])
   @@index([userId])
+  // Limpeza periodica de tokens vencidos.
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }

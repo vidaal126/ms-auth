@@ -32,6 +32,11 @@ export const envSchema = z
     AUTH_AUDIENCE: z.string().min(1).default("ms-platform"),
     ACCESS_TOKEN_TTL_SECONDS: positiveInt.min(60).max(3_600).default(900),
     REFRESH_TOKEN_TTL_SECONDS: positiveInt.min(3_600).max(60 * 60 * 24 * 30).default(60 * 60 * 24 * 7),
+    // Limpeza periodica de refresh tokens: remove familias inteiras vencidas ha
+    // mais que a retencao, em lotes.
+    REFRESH_TOKEN_CLEANUP_INTERVAL_MS: positiveInt.min(1_000).default(3_600_000),
+    REFRESH_TOKEN_RETENTION_SECONDS: positiveInt.max(60 * 60 * 24 * 90).default(60 * 60 * 24),
+    REFRESH_TOKEN_CLEANUP_BATCH_SIZE: positiveInt.max(10_000).default(1_000),
 
     // Admin inicial (opcional): criado no boot se ainda nao existir.
     AUTH_BOOTSTRAP_ADMIN_EMAIL: z.email().optional(),

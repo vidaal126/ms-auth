@@ -37,6 +37,22 @@ export class RefreshTokenRepositoryPrisma implements IRefreshTokenRepository {
       data: { revokedAt: now },
     });
   }
+
+  // DELETE com LIMIT via subquery: o Prisma nao limita deleteMany. O NOT EXISTS
+  // mantem a familia enquanto qualquer token dela vencer depois do cutoff.
+  async deleteExpiredFamilies(cutoff: Date, limit: number): Promise<number> {
+    return this.prisma.$executeRaw`
+      DELETE FROM "refresh_tokens"
+      WHERE "id" IN (
+        SELECT t."id" FROM "refresh_tokens" t
+        WHERE t."expiresAt" < ${cutoff}
+          AND NOT EXISTS (
+            SELECT 1 FROM "refresh_tokens" f
+            WHERE f."familyId" = t."familyId" AND f."expiresAt" >= ${cutoff}
+          )
+        LIMIT ${limit}
+      )`;
+  }
 }
 
 function toData(token: RefreshToken): RefreshTokenModel {

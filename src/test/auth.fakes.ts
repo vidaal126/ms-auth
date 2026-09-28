@@ -58,6 +58,16 @@ export class InMemoryRefreshTokenRepository implements IRefreshTokenRepository {
     }
   }
 
+  async deleteExpiredFamilies(cutoff: Date, limit: number): Promise<number> {
+    const tokens = [...this.rows.values()];
+    const liveFamilies = new Set(
+      tokens.filter((t) => t.expiresAt.getTime() >= cutoff.getTime()).map((t) => t.familyId),
+    );
+    const doomed = tokens.filter((t) => !liveFamilies.has(t.familyId)).slice(0, limit);
+    for (const token of doomed) this.rows.delete(token.id);
+    return doomed.length;
+  }
+
   activeInFamily(familyId: string): number {
     return [...this.rows.values()].filter((t) => t.familyId === familyId && !t.isRevoked()).length;
   }

@@ -34,6 +34,10 @@ Serviço de identidade da plataforma (NestJS, Prisma, PostgreSQL):
   precisa fazer login de novo. Um token revogado por logout, ou pela revogação
   da família, não conta como reuso: recebe só 401 de token inválido
   (`replacedById` distingue os dois casos).
+- **Limpeza**: um job periódico apaga, em lotes, os refresh tokens de famílias
+  cujo token mais novo venceu há mais que `REFRESH_TOKEN_RETENTION_SECONDS`.
+  Token vencido já é rejeitado; enquanto a família tiver um token vigente, os
+  rotacionados ficam, para a detecção de reuso continuar funcionando.
 - **`kid`**: é o thumbprint RFC 7638 da chave pública. Ele só muda se a chave
   mudar, o que permite ao gateway manter o JWKS em cache.
 - **Login**: email inexistente, senha errada e usuário inativo dão o mesmo 401.
@@ -65,6 +69,9 @@ Validadas com Zod no boot; env inválida impede a subida. Veja `.env.example`.
 | `AUTH_ISSUER` / `AUTH_AUDIENCE` | `ms-auth` / `ms-platform` | claims validadas pelo gateway |
 | `ACCESS_TOKEN_TTL_SECONDS` | 900 | de 60 a 3600 |
 | `REFRESH_TOKEN_TTL_SECONDS` | 604800 | de 1 hora a 30 dias |
+| `REFRESH_TOKEN_CLEANUP_INTERVAL_MS` | 3600000 | intervalo da limpeza de refresh tokens |
+| `REFRESH_TOKEN_RETENTION_SECONDS` | 86400 | quanto tempo uma família vencida fica antes de ser apagada (até 90 dias) |
+| `REFRESH_TOKEN_CLEANUP_BATCH_SIZE` | 1000 | linhas por DELETE (até 10000) |
 | `AUTH_BOOTSTRAP_ADMIN_EMAIL` / `_PASSWORD` | vazio | admin criado no boot, de forma idempotente |
 | `THROTTLE_LOGIN_TTL_MS` / `_LIMIT` | 60000 / 10 | limite de login e refresh por IP |
 | `THROTTLE_DEFAULT_TTL_MS` / `_LIMIT` | 60000 / 100 | demais rotas |
@@ -100,8 +107,6 @@ yarn test:integration  # Postgres real (testcontainers)
   publicar duas chaves no JWKS.
 - **Access token não é revogável.** O logout revoga só o refresh; o access
   continua válido até expirar.
-- **Tokens vencidos não são removidos.** Não há limpeza periódica de
-  `refresh_tokens` expirados.
 - **Sem desativação nem troca de senha pela API.** `active` existe no modelo,
   mas não há endpoint para mudá-lo.
 - **Rate limit em memória, por réplica.**

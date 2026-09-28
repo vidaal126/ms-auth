@@ -22,6 +22,10 @@ export interface IRefreshTokenRepository {
   // `next` na mesma transacao. false = outro request rotacionou antes.
   rotate(currentId: string, next: RefreshToken, now: Date): Promise<boolean>;
   revokeFamily(familyId: string, now: Date): Promise<void>;
+  // Remove ate `limit` tokens de familias cujo token mais novo venceu antes de
+  // `cutoff`. Familia com token vigente fica inteira: a deteccao de reuso
+  // precisa dos rotacionados. Retorna quantos removeu.
+  deleteExpiredFamilies(cutoff: Date, limit: number): Promise<number>;
 }
 
 export interface PasswordHasher {

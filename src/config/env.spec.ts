@@ -13,6 +13,19 @@ describe("validateEnv", () => {
     expect(env).toMatchObject({ PORT: 3002, ACCESS_TOKEN_TTL_SECONDS: 900, AUTH_AUDIENCE: "ms-platform" });
   });
 
+  it("limpeza de refresh tokens: padroes e limites", () => {
+    const env = validateEnv({ ...base, AUTH_PRIVATE_KEY_FILE: "/k.pem" });
+
+    expect(env).toMatchObject({
+      REFRESH_TOKEN_CLEANUP_INTERVAL_MS: 3_600_000,
+      REFRESH_TOKEN_RETENTION_SECONDS: 86_400,
+      REFRESH_TOKEN_CLEANUP_BATCH_SIZE: 1_000,
+    });
+    expect(() =>
+      validateEnv({ ...base, AUTH_PRIVATE_KEY_FILE: "/k.pem", REFRESH_TOKEN_CLEANUP_BATCH_SIZE: "0" }),
+    ).toThrow(InvalidEnvironmentError);
+  });
+
   it("exige exatamente uma fonte de chave", () => {
     expect(() => validateEnv(base)).toThrow(InvalidEnvironmentError);
     expect(() =>

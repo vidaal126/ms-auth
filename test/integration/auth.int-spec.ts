@@ -7,6 +7,8 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { z } from "zod";
+import { RefreshTokenCleanupService } from "../../src/infrastructure/cleanup/refresh-token-cleanup.service";
+import { PrismaService } from "../../src/infrastructure/database/prisma/prisma.service";
 import { sampleValue } from "../../src/test/metrics.helpers";
 
 const ADMIN_EMAIL = "admin@ms-platform.local";
@@ -77,6 +79,8 @@ describe("ms-auth: sessao, usuarios e JWKS (integracao)", () => {
       AUTH_BOOTSTRAP_ADMIN_EMAIL: ADMIN_EMAIL,
       AUTH_BOOTSTRAP_ADMIN_PASSWORD: ADMIN_PASSWORD,
       THROTTLE_LOGIN_LIMIT: "50",
+      // Lote pequeno: a limpeza precisa de mais de um lote no teste.
+      REFRESH_TOKEN_CLEANUP_BATCH_SIZE: "2",
     });
 
     const { NestFactory } = await import("@nestjs/core");
@@ -191,6 +195,53 @@ describe("ms-auth: sessao, usuarios e JWKS (integracao)", () => {
     expect(
       sampleValue(text, "http_request_duration_seconds_count", { method: "GET", route: "/users/me", status_code: "200" }),
     ).toBe(1);
+  });
+
+  it("limpeza remove so familias vencidas ha mais que a retencao", async () => {
+    const prisma = app.get(PrismaService);
+    const admin = await prisma.user.findUniqueOrThrow({ where: { email: ADMIN_EMAIL } });
+    const now = new Date();
+    const hours = (n: number): Date => new Date(now.getTime() + n * 3_600_000);
+    let seq = 0;
+    const insert = async (familyId: string, expiresInHours: number): Promise<string> => {
+      seq += 1;
+      const id = `cleanup-${familyId}-${seq}`;
+      await prisma.refreshToken.create({
+        data: {
+          id,
+          userId: admin.id,
+          familyId,
+          tokenHash: seq.toString(16).padStart(64, "0"),
+          expiresAt: hours(expiresInHours),
+          createdAt: hours(expiresInHours - 168),
+        },
+      });
+      return id;
+    };
+    const expired = [
+      await insert("f-velha-1", -48),
+      await insert("f-velha-1", -30),
+      await insert("f-velha-2", -100),
+      await insert("f-velha-3", -25),
+    ];
+    const kept = [
+      await insert("f-recente", -2),
+      await insert("f-vigente", 24),
+      // Rotacionado ha muito, com sucessor vigente: a deteccao de reuso precisa dele.
+      await insert("f-rotacionada", -72),
+      await insert("f-rotacionada", 12),
+    ];
+    const before = await prisma.refreshToken.count();
+
+    await app.get(RefreshTokenCleanupService).run(now);
+
+    const remaining = await prisma.refreshToken.findMany({
+      where: { id: { in: [...expired, ...kept] } },
+      select: { id: true },
+    });
+    expect(remaining.map((row) => row.id).sort()).toEqual([...kept].sort());
+    // Tokens das sessoes dos outros testes (vigentes) ficam intactos.
+    expect(await prisma.refreshToken.count()).toBe(before - expired.length);
   });
 
   // Roda por ultimo: esgota o balde de login de um cliente.
