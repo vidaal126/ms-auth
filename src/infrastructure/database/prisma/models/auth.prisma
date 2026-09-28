@@ -1,0 +1,31 @@
+// Usuarios do ms-auth. email ja normalizado (trim + minusculas) pelo dominio.
+model User {
+  id           String         @id
+  email        String         @unique
+  passwordHash String
+  roles        String[]
+  active       Boolean        @default(true)
+  createdAt    DateTime
+  updatedAt    DateTime
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+// Refresh tokens rotacionados: so o hash e guardado. familyId agrupa as
+// rotacoes de um mesmo login (reuso revoga a familia inteira).
+model RefreshToken {
+  id           String    @id
+  userId       String
+  familyId     String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  createdAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
