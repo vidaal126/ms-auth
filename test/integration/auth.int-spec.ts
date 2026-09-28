@@ -3,7 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { INestApplication } from "@nestjs/common";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { z } from "zod";
@@ -29,7 +29,7 @@ interface HttpResult {
 // Postgres real + aplicacao completa (ValidationPipe, filtro, throttler).
 describe("ms-auth: sessao, usuarios e JWKS (integracao)", () => {
   let postgres: StartedPostgreSqlContainer;
-  let app: INestApplication;
+  let app: NestExpressApplication;
   let baseUrl: string;
 
   const call = async (
@@ -82,7 +82,7 @@ describe("ms-auth: sessao, usuarios e JWKS (integracao)", () => {
     const { NestFactory } = await import("@nestjs/core");
     const { AppModule } = await import("../../src/app.module");
     const { configureApp } = await import("../../src/app.setup");
-    app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
+    app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: false, abortOnError: false });
     configureApp(app);
     await app.listen(0);
     baseUrl = (await app.getUrl()).replace("[::1]", "localhost");
@@ -191,5 +191,25 @@ describe("ms-auth: sessao, usuarios e JWKS (integracao)", () => {
     expect(
       sampleValue(text, "http_request_duration_seconds_count", { method: "GET", route: "/users/me", status_code: "200" }),
     ).toBe(1);
+  });
+
+  // Roda por ultimo: esgota o balde de login de um cliente.
+  it("throttler de login conta por cliente (X-Forwarded-For do gateway), nao pelo proxy", async () => {
+    const loginFrom = async (clientIp: string): Promise<number> => {
+      const response = await fetch(`${baseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": clientIp },
+        body: JSON.stringify({ email: "ninguem@ms-platform.local", password: "senha-errada-123" }),
+      });
+      await response.text();
+      return response.status;
+    };
+    const loginLimit = Number(process.env.THROTTLE_LOGIN_LIMIT);
+
+    for (let attempt = 0; attempt < loginLimit; attempt++) {
+      expect(await loginFrom("203.0.113.10")).toBe(401);
+    }
+    expect(await loginFrom("203.0.113.10")).toBe(429);
+    expect(await loginFrom("203.0.113.20")).toBe(401);
   });
 });
